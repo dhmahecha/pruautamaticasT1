@@ -28,7 +28,7 @@
         app.toggleAddDialog(true);
     });
 
-    document.getElementById('butAddCity').addEventListener('click', function () {
+    document.getElementById('butAddTimetable').addEventListener('click', function () {
 
 
         var select = document.getElementById('selectTimetableToAdd');
@@ -40,6 +40,7 @@
         }
         app.getSchedule(key, label);
         app.selectedTimetables.push({key: key, label: label});
+	app.saveSelectedTimetables();
         app.toggleAddDialog(false);
     });
 
@@ -86,6 +87,18 @@
             app.visibleCards[key] = card;
         }
         card.querySelector('.card-last-updated').textContent = data.created;
+    	var cardLastUpdatedElem = card.querySelector('.card-last-updated');
+    	var cardLastUpdated = cardLastUpdatedElem.textContent;
+    	if (cardLastUpdated) {
+      	cardLastUpdated = new Date(cardLastUpdated);
+      	// Bail if the card has more recent data then the data
+      	if (dataLastUpdated.getTime() < cardLastUpdated.getTime()) 
+		{
+	        	return;
+      		}
+    	}
+    cardLastUpdatedElem.textContent = data.created;
+
 
         var scheduleUIs = card.querySelectorAll('.schedule');
         for(var i = 0; i<4; i++) {
@@ -112,6 +125,26 @@
 
     app.getSchedule = function (key, label) {
         var url = 'https://api-ratp.pierre-grimaud.fr/v3/schedules/' + key;
+
+
+    if ('caches' in window) {
+      /*
+       * Check if the service worker has already cached this city's weather
+       * data. If the service worker has the data, then display the cached
+       * data while the app fetches the latest data.
+       */
+      caches.match(url).then(function(response) {
+        if (response) {
+          response.json().then(function updateFromCache(json) {
+            var result = json.result;
+            result.key = key;
+            result.label = label;
+            result.created = json._metadata.date;
+            app.updateTimetableCard(result);
+          });
+        }
+      });
+    }
 
         var request = new XMLHttpRequest();
         request.onreadystatechange = function () {
@@ -142,6 +175,15 @@
         });
     };
 
+
+  // Save list of timetables to localStorage.
+  app.saveSelectedTimetables = function() {
+    var selectedTimetables = JSON.stringify(app.selectedTimetables);
+    localStorage.selectedTimetables = selectedTimetables;
+  }
+
+
+
     /*
      * Fake timetable data that is presented when the user first uses the app,
      * or when the user has not saved any stations. See startup code for more
@@ -169,6 +211,7 @@
     };
 
 
+
     /************************************************************************
      *
      * Code required to start the app
@@ -184,4 +227,40 @@
     app.selectedTimetables = [
         {key: initialStationTimetable.key, label: initialStationTimetable.label}
     ];
+
+/************************************************************************
+   *
+   * Code required to start the app
+   *
+   * NOTE: To simplify this codelab, we've used localStorage.
+   *   localStorage is a synchronous API and has serious performance
+   *   implications. It should not be used in production applications!
+   *   Instead, check out IDB (https://www.npmjs.com/package/idb) or
+   *   SimpleDB (https://gist.github.com/inexorabletash/c8069c042b734519680c)
+   ************************************************************************/
+
+  app.selectedTimetables = localStorage.selectedTimetables;
+  if (app.selectedTimetables) {
+    app.selectedTimetables = JSON.parse(app.selectedTimetables);
+    app.selectedTimetables.forEach(function(timeTable) {
+      app.getSchedule(timeTable.key, timeTable.label);
+    });
+  } else {
+    /* The user is using the app for the first time, or the user has not
+     * saved any timeTables, so show the user some fake data. A real app in this
+     * scenario could guess the user's location via IP lookup and then inject
+     * that data into the page.
+     */
+    app.updateTimetableCard(initialStationTimetable);
+    app.selectedTimetables = [
+      {key: initialStationTimetable.key, label: initialStationTimetable.label}
+    ];
+    app.saveSelectedTimetables();
+  }
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker
+             .register('./service-worker.js')
+             .then(function() { console.log('Service Worker Registered'); });
+  }
 })();
