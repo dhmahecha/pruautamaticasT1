@@ -92,12 +92,11 @@
     	if (cardLastUpdated) {
       	cardLastUpdated = new Date(cardLastUpdated);
       	// Bail if the card has more recent data then the data
-      	if (dataLastUpdated.getTime() < cardLastUpdated.getTime()) 
-		{
-	        	return;
-      		}
+	      	if (dataLastUpdated.getTime() < cardLastUpdated.getTime()){
+			return;
+	      	}
     	}
-    cardLastUpdatedElem.textContent = data.created;
+    	cardLastUpdatedElem.textContent = data.created;
 
 
         var scheduleUIs = card.querySelectorAll('.schedule');
@@ -110,6 +109,7 @@
         }
 
         if (app.isLoading) {
+	    window.cardLoadTime = performance.now();
             app.spinner.setAttribute('hidden', true);
             app.container.removeAttribute('hidden');
             app.isLoading = false;
@@ -165,6 +165,7 @@
         };
         request.open('GET', url);
         request.send();
+	window.apiLoadTime = performance.now();
     };
 
     // Iterate all of the cards and attempt to get the latest timetable data
@@ -180,6 +181,7 @@
   app.saveSelectedTimetables = function() {
     var selectedTimetables = JSON.stringify(app.selectedTimetables);
     localStorage.selectedTimetables = selectedTimetables;
+    keyValStore.set('foo', {hello: 'world'});
   }
 
 
